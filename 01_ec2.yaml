@@ -1,137 +1,745 @@
-AWSTemplateFormatVersion: 2010-09-09
-Description:  This template deploys a VPC in either us-east1 or us-west-2, with a pair of public and private subnets spread
-  across two Availability Zones. It deploys an internet gateway, with a default
-  route on the public subnets, a Linux t2.micro Instance with Security Group with open HTTP access. 
-    
-Mappings:
-  RegionMap:
-    us-east-1:
-     "AMI": "ami-0742b4e673072066f"
+# (c) 2020 Amazon Web Services, Inc. or its affiliates. All Rights Reserved. This AWS Content
+# is provided subject to the terms of the AWS Customer Agreement available at
+# https://aws.amazon.com/agreement/ or other written agreement between Customer
+# and Amazon Web Services, Inc.
+
+AWSTemplateFormatVersion: "2010-09-09"
+
+Description: This template deploys a VPC, with several subnets, the associated route tables, and security groups.
+
+
+###
+### CloudFormation Interface Metadata
+###
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: "VPC Configuration Settings"
+        Parameters:
+          - pVpcCIDR
+          - pSubnetCIDR
+          - pEnvironment
+      - Label:
+          default: "Subnet and Route Table Tags"
+        Parameters:
+          - pTag1
+          - pTag2
+          - pTag3
+          - pTag4
+          - pTag5
+          - pTag6
+          - pTag7
+          - pTag8
+      - Label:
+          default: "Subnet Breakdown"
+        Parameters:
+          - pCIDR1
+          - pCIDR2
+          - pCIDR3
+          - pCIDR4
+          - pCIDR5
+          - pCIDR6
+          - pCIDR7
+          - pCIDR8
+
+###
+### Template input parameters
+###
+
+Parameters:
+  pTag1:
+    Description: Tag for Sub & Route 1
+    Type: String
+    Default: oob
+
+  pTag2:
+    Description: Tag for Sub & Route 2
+    Type: String
+    Default: video
+
+  pTag3:
+    Description: Tag for Sub & Route 3
+    Type: String
+    Default: control
+
+  pTag4:
+    Description: Tag for Sub & Route 4
+    Type: String
+    Default: web
+
+  pTag5:
+    Description: Tag for Sub & Route 5
+    Type: String
+    Default: sbc-ha
+
+  pTag6:
+    Description: Tag for Sub & Route 6
+    Type: String
+    Default: sbc-access
+
+  pTag7:
+    Description: Tag for Sub & Route 7
+    Type: String
+    Default: hfe-pub
+
+  pTag8:
+    Description: Tag for Sub & Route 8
+    Type: String
+    Default: external
+
+  pVpcCIDR:
+    Description: VPC Range - must match subnet CIDR
+    Type: String
+    AllowedPattern: '^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\/([0-9]|[1-2][0-9]|3[0-2]))$'
+    Default: 10.0.4.0/24
+
+  pSubnetCIDR:
+    Description: First 3 octets of the VPC and subnets - must match VPC
+    Type: String
+    Default: 10.0.4.
+
+  pCIDR1:
+    Description: Last 2 octets of Sub1
+    Type: String
+    Default: 0/26
+
+  pCIDR2:
+    Description: Last 2 octets of Sub2
+    Type: String
+    Default: 64/26   
+
+  pCIDR3:
+    Description: Last 2 octets of Sub3
+    Type: String
+    Default: 128/28 
+
+  pCIDR4:
+    Description: Last 2 octets of Sub4
+    Type: String
+    Default: 160/28 
+
+  pCIDR5:
+    Description: Last 2 octets of Sub5
+    Type: String
+    Default: 176/28 
+
+  pCIDR6:
+    Description: Last 2 octets of Sub6
+    Type: String
+    Default: 192/28 
+
+  pCIDR7:
+    Description: Last 2 octets of Sub7
+    Type: String
+    Default: 208/28
+
+  pCIDR8:
+    Description: Last 2 octets of Sub7
+    Type: String
+    Default: 144/28
+  
+  pEnvironment:
+    Description: Environment that this will be deployed for (prod or pre-prod)
+    Type: String
+    Default: Prod
+    AllowedValues: 
+      - Prod
+      - PreProd
+
+###
+### Template Resources
+###
+
 Resources:
-  VPC:
+  rVPC1:
     Type: AWS::EC2::VPC
     Properties:
-      CidrBlock: 10.0.0.0/16
-      EnableDnsSupport: true
+      CidrBlock: !Ref pVpcCIDR
       EnableDnsHostnames: true
+      InstanceTenancy: default
       Tags:
         - Key: Name
-          Value: LUIT Project
+          Value: !Sub ${AWS::StackName}-vpc
+        - Key: Environment
+          Value: !Ref pEnvironment
 
-  InternetGateway:
-    Type: AWS::EC2::InternetGateway
+#################################
+## Temporary IGW Resources Below
+#################################
+
+#  rInternetGateway:
+#    Type: 'AWS::EC2::InternetGateway'
+#    Properties:
+#      Tags:
+#      - Key: Name
+#        Value: !Sub '${AWS::StackName}-igw'
+#
+#  rIGWAttachment:
+#    Type: AWS::EC2::VPCGatewayAttachment
+#    Properties:
+#      InternetGatewayId: !Ref rInternetGateway
+#      VpcId: !Ref rVPC1
+
+#  rDhcpOptions:
+#      Type: 'AWS::EC2::DHCPOptions'
+#      Properties:
+#        DomainName: ec2.internal
+#        DomainNameServers:
+#          - 'AmazonProvidedDNS'
+#        Tags:
+#        - Key: Name
+#          Value: !Sub '${AWS::StackName}-dopt'
+#  rDhcpOptionsAssociation:
+#      Type: "AWS::EC2::VPCDHCPOptionsAssociation"
+#      Properties:
+#        VpcId: !Ref rVPC1
+#        DhcpOptionsId: !Ref rDhcpOptions
+
+#  rNatGatewayEIP:
+#    Type: 'AWS::EC2::EIP'
+#    Properties:
+#      Domain: vpc
+#      Tags:
+#      - Key: Name
+#        Value: !Sub '${AWS::StackName}-natgw-eip'
+#
+#  rNatGateway:
+#    Type: 'AWS::EC2::NatGateway'
+#    Properties:
+#      AllocationId: !GetAtt [rNatGatewayEIP, AllocationId]
+#      SubnetId: !Ref rSubnet8
+#      Tags:
+#        - Key: Name
+#          Value: !Sub ${AWS::StackName}-natgw
+#
+#  rRouteTablePExternalInternetRoute:
+#    Type: 'AWS::EC2::Route'
+#    DependsOn: rIGWAttachment
+#    Properties:
+#      RouteTableId: !Ref rRouteTable8 ##External RTB
+#      DestinationCidrBlock: '0.0.0.0/0'
+#      GatewayId: !Ref rInternetGateway
+#
+#  rRouteTableControlInternetRoute:
+#    Type: 'AWS::EC2::Route'
+#    DependsOn: rIGWAttachment
+#    Properties:
+#      RouteTableId: !Ref rRouteTable1 ##OOB RTB
+#      DestinationCidrBlock: '0.0.0.0/0'
+#      NatGatewayId: !Ref rNatGateway
+
+#################################
+## Temporary IGW Resources Above
+#################################
+
+  rTag1Parameter:
+    Type: AWS::SSM::Parameter
     Properties:
-      Tags:
-        - Key: Name
-          Value: Luit Project
+      Name: !Sub /${AWS::StackName}/tag1
+      Type: String
+      Value: !Ref pTag1
+      Description: Describes subnet 1
 
-  InternetGatewayAttachment:
-    Type: AWS::EC2::VPCGatewayAttachment
+  rTag2Parameter:
+    Type: AWS::SSM::Parameter
     Properties:
-      InternetGatewayId: !Ref InternetGateway
-      VpcId: !Ref VPC
+      Name: !Sub /${AWS::StackName}/tag2
+      Type: String
+      Value: !Ref pTag2
+      Description: Describes subnet 2
 
-  PublicSubnet1:
+  rTag3Parameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /${AWS::StackName}/tag3
+      Type: String
+      Value: !Ref pTag3
+      Description: Describes subnet 3
+
+  rTag4Parameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /${AWS::StackName}/tag4
+      Type: String
+      Value: !Ref pTag4
+      Description: Describes subnet 4
+
+  rTag5Parameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /${AWS::StackName}/tag5
+      Type: String
+      Value: !Ref pTag5
+      Description: Describes subnet 5
+
+  rTag6Parameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /${AWS::StackName}/tag6
+      Type: String
+      Value: !Ref pTag6
+      Description: Describes subnet 6
+
+  rTag7Parameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /${AWS::StackName}/tag7
+      Type: String
+      Value: !Ref pTag7
+      Description: Describes subnet 7
+
+  rTag8Parameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /${AWS::StackName}/tag8
+      Type: String
+      Value: !Ref pTag8
+      Description: Describes subnet 8
+
+  rSubnet1:
     Type: AWS::EC2::Subnet
     Properties:
-      VpcId: !Ref VPC
-      AvailabilityZone: !Select [ 0, !GetAZs '' ]
-      CidrBlock: 10.0.1.0/24
-      MapPublicIpOnLaunch: true
-      Tags:
-        - Key: Name
-          Value: LUIT Project Public Subnet (AZ1)
-
-  PublicSubnet2:
-    Type: AWS::EC2::Subnet
-    Properties:
-      VpcId: !Ref VPC
-      AvailabilityZone: !Select [ 1, !GetAZs  '' ]
-      CidrBlock: 10.0.2.0/24
-      MapPublicIpOnLaunch: true
-      Tags:
-        - Key: Name
-          Value: LUIT Project Public Subnet (AZ2)
-
-  PrivateSubnet1:
-    Type: AWS::EC2::Subnet
-    Properties:
-      VpcId: !Ref VPC
-      AvailabilityZone: !Select [ 0, !GetAZs  '' ]
-      CidrBlock: 10.0.11.0/24
+      VpcId: !Ref rVPC1
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      CidrBlock: !Sub ${pSubnetCIDR}${pCIDR1}
       MapPublicIpOnLaunch: false
       Tags:
         - Key: Name
-          Value: LUIT Project Private Subnet (AZ1)
+          Value: !Sub ${AWS::StackName}-${pTag1}-subnet-a
 
-  PrivateSubnet2:
-    Type: AWS::EC2::Subnet
-    Properties:
-      VpcId: !Ref VPC
-      AvailabilityZone: !Select [ 1, !GetAZs  '' ]
-      CidrBlock: 10.0.12.0/24
-      MapPublicIpOnLaunch: false
-      Tags:
-        - Key: Name
-          Value: LUIT Project Private Subnet (AZ2)
-
-  PublicRouteTable:
+  rRouteTable1:
     Type: AWS::EC2::RouteTable
     Properties:
-      VpcId: !Ref VPC
+      VpcId: !Ref rVPC1
       Tags:
         - Key: Name
-          Value: LUIT Project Public Routes
+          Value: !Sub ${AWS::StackName}-${pTag1}-rtb-a
+        - Key: Type
+          Value: Internal
+        - Key: Environment
+          Value: !Ref pEnvironment
 
-  DefaultPublicRoute:
-    Type: AWS::EC2::Route
-    DependsOn: InternetGatewayAttachment
-    Properties:
-      RouteTableId: !Ref PublicRouteTable
-      DestinationCidrBlock: 0.0.0.0/0
-      GatewayId: !Ref InternetGateway
-
-  PublicSubnet1RouteTableAssociation:
+  rSubnet1RouteTableAssociation:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
-      RouteTableId: !Ref PublicRouteTable
-      SubnetId: !Ref PublicSubnet1
+      RouteTableId: !Ref rRouteTable1
+      SubnetId: !Ref rSubnet1
 
-  PublicSubnet2RouteTableAssociation:
+  rSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref rVPC1
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      CidrBlock: !Sub ${pSubnetCIDR}${pCIDR2}
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-${pTag2}-subnet-a
+
+  rRouteTable2:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref rVPC1
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-${pTag2}-rtb-a
+        - Key: Type
+          Value: Internal
+        - Key: Environment
+          Value: !Ref pEnvironment
+
+  rSubnet2RouteTableAssociation:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
-      RouteTableId: !Ref PublicRouteTable
-      SubnetId: !Ref PublicSubnet2
-      
-  WebServerSecurityGroup:
-    Type: 'AWS::EC2::SecurityGroup'
+      RouteTableId: !Ref rRouteTable2
+      SubnetId: !Ref rSubnet2
+
+  rSubnet3:
+    Type: AWS::EC2::Subnet
     Properties:
-      GroupDescription: Enable HTTP from 0.0.0.0/0
+      VpcId: !Ref rVPC1
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      CidrBlock: !Sub ${pSubnetCIDR}${pCIDR3}
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-${pTag3}-subnet-a
+
+  rRouteTable3:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref rVPC1
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-${pTag3}-rtb-a
+        - Key: Type
+          Value: Internal
+        - Key: Environment
+          Value: !Ref pEnvironment
+
+  rSubnet3RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref rRouteTable3
+      SubnetId: !Ref rSubnet3
+
+  rSubnet4:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref rVPC1
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      CidrBlock: !Sub ${pSubnetCIDR}${pCIDR4}
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-${pTag4}-subnet-a
+
+  rRouteTable4:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref rVPC1
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-${pTag4}-rtb-a
+        - Key: Type
+          Value: Internal
+        - Key: Environment
+          Value: !Ref pEnvironment
+
+  rSubnet4RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref rRouteTable4
+      SubnetId: !Ref rSubnet4
+
+  rSubnet5:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref rVPC1
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      CidrBlock: !Sub ${pSubnetCIDR}${pCIDR5}
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-${pTag5}-subnet-a
+
+  rRouteTable5:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref rVPC1
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-${pTag5}-rtb-a
+        - Key: Type
+          Value: Internal
+        - Key: Environment
+          Value: !Ref pEnvironment
+
+  rSubnet5RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref rRouteTable5
+      SubnetId: !Ref rSubnet5
+
+  rSubnet6:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref rVPC1
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      CidrBlock: !Sub ${pSubnetCIDR}${pCIDR6}
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-${pTag6}-subnet-a
+
+  rRouteTable6:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref rVPC1
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-${pTag6}-rtb-a
+        - Key: Type
+          Value: Internal
+        - Key: Environment
+          Value: !Ref pEnvironment
+
+  rSubnet6RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref rRouteTable6
+      SubnetId: !Ref rSubnet6
+
+  rSubnet7:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref rVPC1
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      CidrBlock: !Sub ${pSubnetCIDR}${pCIDR7}
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-${pTag7}-subnet-a
+
+  rRouteTable7:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref rVPC1
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-${pTag7}-rtb-a
+        - Key: Type
+          Value: Internal
+        - Key: Environment
+          Value: !Ref pEnvironment
+
+  rSubnet7RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref rRouteTable7
+      SubnetId: !Ref rSubnet7
+
+  rSubnet8:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref rVPC1
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      CidrBlock: !Sub ${pSubnetCIDR}${pCIDR8}
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-${pTag8}-subnet-a
+
+  rRouteTable8:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref rVPC1
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-${pTag8}-rtb-a
+        - Key: Type
+          Value: External
+        - Key: Environment
+          Value: !Ref pEnvironment
+
+  rSubnet8RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref rRouteTable8
+      SubnetId: !Ref rSubnet8
+
+  ###
+  ### Generic Security Groups (OOB and Other)
+  ###
+
+  rOOBENISecurityGroup:
+    Type: "AWS::EC2::SecurityGroup"
+    Properties:
+      GroupDescription: Enable SSH access
+      GroupName: !Sub ${AWS::StackName}-oob-sg
       SecurityGroupIngress:
         - IpProtocol: tcp
-          FromPort: '80'
-          ToPort: '80'
-          CidrIp: 0.0.0.0/0
-      VpcId: !Ref VPC 
-      
-  EC2Instance:
-    Type: AWS::EC2::Instance
-    Properties:
-      ImageId: !FindInMap [RegionMap, !Ref "AWS::Region", AMI]
-      InstanceType: t2.micro
-      SubnetId: !Ref PublicSubnet1
-      SecurityGroupIds: 
-        - !Ref WebServerSecurityGroup
+          FromPort: 22
+          ToPort: 22
+          CidrIp: !Ref pVpcCIDR
+      VpcId: !Ref rVPC1
       Tags:
-       - Key: Name
-         Value: LUIT Project EC2     
-      UserData:
-        Fn::Base64: !Sub |
-            #!/bin/bash
-            yum install httpd -y
-            service httpd start  
-            echo "<html><body><h1>Hello from Region ${AWS::Region}<h1></body></html>" > /var/www/html/index.html
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-oob-sg
+
+  rNetworkENISecurityGroup:
+    Type: "AWS::EC2::SecurityGroup"
+    Properties:
+      GroupDescription: Enable HTTPS access
+      GroupName: !Sub ${AWS::StackName}-network-sg
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: !Ref pVpcCIDR
+      VpcId: !Ref rVPC1
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-network-sg
+
+###
+### Template Outputs
+###
+
 Outputs:
-  PublicIp:
-    Description: EC2 Instance Public Ip
-    Value: !GetAtt EC2Instance.PublicIp
+  oVPCProd:
+    Description: A reference to the created VPC
+    Value: !Ref rVPC1
+    Export:
+      Name: !Sub ${AWS::StackName}-vpc-id
+
+  pVPDCIDR:
+    Description: CIDR Block of VPC
+    Value: !Ref pVpcCIDR
+    Export:
+      Name: !Sub ${AWS::StackName}-vpc-cidr
+
+  oSubnet1:
+    Description: A reference to Subnet1 
+    Value: !Ref rSubnet1
+    Export:
+      Name: !Sub ${pTag1}-${AWS::StackName}-subnet-a
+
+  oSubnet2:
+    Description: A reference to Subnet2
+    Value: !Ref rSubnet2
+    Export:
+      Name: !Sub ${pTag2}-${AWS::StackName}-subnet-a
+
+  oSubnet3:
+    Description: A reference to Subnet3
+    Value: !Ref rSubnet3
+    Export:
+      Name: !Sub ${pTag3}-${AWS::StackName}-subnet-a
+
+  oSubnet4:
+    Description: A reference to Subnet4
+    Value: !Ref rSubnet4
+    Export:
+      Name: !Sub ${pTag4}-${AWS::StackName}-subnet-a
+
+  oSubnet5:
+    Description: A reference to Subnet5
+    Value: !Ref rSubnet5
+    Export:
+      Name: !Sub ${pTag5}-${AWS::StackName}-subnet-a
+
+  oSubnet6:
+    Description: A reference to Subnet6
+    Value: !Ref rSubnet6
+    Export:
+      Name: !Sub ${pTag6}-${AWS::StackName}-subnet-a
+
+  oSubnet7:
+    Description: A reference to Subnet7
+    Value: !Ref rSubnet7
+    Export:
+      Name: !Sub ${pTag7}-${AWS::StackName}-subnet-a
+
+  oSubnet8:
+    Description: A reference to Subnet8
+    Value: !Ref rSubnet8
+    Export:
+      Name: !Sub ${pTag8}-${AWS::StackName}-subnet-a
+  
+  oRouteTable1:
+    Description: Route Table 1 ID
+    Value: !Ref rRouteTable1
+    Export:
+      Name: !Sub ${pTag1}-${AWS::StackName}-rtb-a
+  
+  oRouteTable2:
+    Description: Route Table 2 ID
+    Value: !Ref rRouteTable2
+    Export:
+      Name: !Sub ${pTag2}-${AWS::StackName}-rtb-a
+
+  oRouteTable3:
+    Description: Route Table 3 ID
+    Value: !Ref rRouteTable3
+    Export:
+      Name: !Sub ${pTag3}-${AWS::StackName}-rtb-a
+  
+  oRouteTable4:
+    Description: Route Table 4 ID
+    Value: !Ref rRouteTable4
+    Export:
+      Name: !Sub ${pTag4}-${AWS::StackName}-rtb-a
+  
+  oRouteTable5:
+    Description: Route Table 5 ID
+    Value: !Ref rRouteTable5
+    Export:
+      Name: !Sub ${pTag5}-${AWS::StackName}-rtb-a
+
+  oRouteTable6:
+    Description: Route Table 6 ID
+    Value: !Ref rRouteTable6
+    Export:
+      Name: !Sub ${pTag6}-${AWS::StackName}-rtb-a
+
+  oRouteTable7:
+    Description: Route Table 7 ID
+    Value: !Ref rRouteTable7
+    Export:
+      Name: !Sub ${pTag7}-${AWS::StackName}-rtb-a
+
+  oRouteTable8:
+    Description: Route Table 8 ID
+    Value: !Ref rRouteTable8
+    Export:
+      Name: !Sub ${pTag8}-${AWS::StackName}-rtb-a
+
+  oOOBENISecurityGroup:
+    Description: OOB Security Group Id
+    Value: !Ref rOOBENISecurityGroup
+    Export:
+      Name: !Sub ${AWS::StackName}-oob-sg
+
+  oNetworkENISecurityGroup:
+    Description: Network Security Group Id
+    Value: !Ref rNetworkENISecurityGroup
+    Export:
+      Name: !Sub ${AWS::StackName}-network-sg
+
+  oTag1Parameter:
+    Description: Tag associated with Tag1
+    Value: !Ref rTag1Parameter
+    Export: 
+      Name: !Sub ${AWS::StackName}-tag1
+
+  oTag2Parameter:
+    Description: Tag associated with Tag2
+    Value: !Ref rTag2Parameter
+    Export: 
+      Name: !Sub ${AWS::StackName}-tag2
+
+  oTag3Parameter:
+    Description: Tag associated with Tag3
+    Value: !Ref rTag3Parameter
+    Export: 
+      Name: !Sub ${AWS::StackName}-tag3
+
+  oTag4Parameter:
+    Description: Tag associated with Tag4
+    Value: !Ref rTag4Parameter
+    Export: 
+      Name: !Sub ${AWS::StackName}-tag4
+
+  oTag5Parameter:
+    Description: Tag associated with Tag5
+    Value: !Ref rTag5Parameter
+    Export: 
+      Name: !Sub ${AWS::StackName}-tag5
+
+  oTag6Parameter:
+    Description: Tag associated with Tag6
+    Value: !Ref rTag6Parameter
+    Export: 
+      Name: !Sub ${AWS::StackName}-tag6
+
+  oTag7Parameter:
+    Description: Tag associated with Tag7
+    Value: !Ref rTag7Parameter
+    Export: 
+      Name: !Sub ${AWS::StackName}-tag7
+
+  oTag8Parameter:
+    Description: Tag associated with Tag8
+    Value: !Ref rTag8Parameter
+    Export: 
+      Name: !Sub ${AWS::StackName}-tag8
+    
+  oEnvironment:
+    Description: Environment value
+    Value: !Ref pEnvironment
+    Export:
+      Name: !Sub ${AWS::StackName}-environment
+      
