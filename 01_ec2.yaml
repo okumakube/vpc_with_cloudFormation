@@ -8,8 +8,8 @@ Resources:
       ImageId: ami-0d5eff06f840b45e9 # ImageID valid only in us-east-1 region
       InstanceType: t2.micro
       KeyName: devops # <-- Change to use your key-pair name
-      SecurityGroupIds:
-        - !Ref WebAppSecurityGroup
+      SecurityGroupIds: ['sg-004fe3c64c5a80141']
+        
 
   WebAppSecurityGroup:
     Type: AWS::EC2::SecurityGroup
