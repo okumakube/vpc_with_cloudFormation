@@ -3,7 +3,7 @@ pipeline {
     stages {
         stage('Submit Stack') {
             steps {
-            sh "aws cloudformation create-stack --stack-name my_vpc --template-body file://vpc.json --region 'us-east-1'"
+            sh "aws cloudformation create-stack --stack-name ec2-example --template-body file://01_ec2.yaml --region 'us-east-1'"
               }
              }
             }
