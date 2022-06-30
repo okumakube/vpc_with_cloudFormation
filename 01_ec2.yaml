@@ -9,12 +9,9 @@ Resources:
       InstanceType: t2.micro
       KeyName: devops # <-- Change to use your key-pair name
       SecurityGroupIds: ['sg-004fe3c64c5a80141']
-        
-
-  WebAppSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupName: !Join ["-", [webapp-security-group, dev]]
+      GroupName: Maven-SG
       GroupDescription: "Allow HTTP/HTTPS and SSH inbound and outbound traffic"
       SecurityGroupIngress:
         - IpProtocol: tcp
