@@ -3,7 +3,7 @@
   "Parameters" : {
     "KeyName" : {
       "Description" : "EC2 instance ssh key",
-      "Type" : "AWS::EC2::KeyPair::KeyName"
+      "Type" : "AWS::EC2::KeyPair::devops"
     },
     "InstanceType" : {
       "Description" : "EC2 instance type",
