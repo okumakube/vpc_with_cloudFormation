@@ -5,7 +5,7 @@ Resources:
   WebAppInstance:
     Type: AWS::EC2::Instance
     Properties:
-      ImageId: ami-0d5eff06f840b45e9 # ImageID valid only in us-east-1 region
+      ImageId: ami-0cff7528ff583bf9a # ImageID valid only in us-east-1 region
       InstanceType: t2.micro
       KeyName: devops # <-- Change to use your key-pair name
       SecurityGroupIds: ["sg-004fe3c64c5a80141"]
